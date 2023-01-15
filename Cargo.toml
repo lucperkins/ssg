@@ -4,4 +4,11 @@ version = "0.0.1-SNAPSHOT"
 edition = "2021"
 
 [dependencies]
-axum = { version = "0.6.2", default-features = false, features = ["tokio"] }
+axum = { version = "0.6.2", default-features = false, features = [
+  "http1",
+  "tokio",
+] }
+hyper = "0.14.23"
+notify = "5.0.0"
+open = "3.2.0"
+thiserror = "1.0.38"
