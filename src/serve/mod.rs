@@ -1,14 +1,17 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::time::Duration;
 
 use axum::{
     body::Body,
     http::{Request, Response},
 };
 
-use notify::{Event, RecursiveMode, Watcher};
+use notify::{Event, RecursiveMode};
 
-const RECURSIVE: RecursiveMode = RecursiveMode::Recursive;
+use self::watch::async_watch;
+
+mod watch;
 
 #[derive(Debug, thiserror::Error)]
 enum ServeError {
@@ -25,9 +28,7 @@ enum ServeError {
     Notify(#[from] notify::Error),
 }
 
-const LIVE_RELOAD: &str = include_str!("livereload.js");
-
-async fn handle_request(req: Request<Body>, root: PathBuf) -> Result<Response<Body>, ServeError> {
+async fn handle_request(_: Request<Body>, _: PathBuf) -> Result<Response<Body>, ServeError> {
     Err(ServeError::Unknown)
 }
 
@@ -43,29 +44,21 @@ enum WatchMode {
     Condition(bool),
 }
 
-fn handle_watch_event(res: Result<Event, notify::Error>) {
-    match res {
-        Ok(event) => println!("event: {:?}", event),
-        Err(e) => println!("watch error: {:?}", e),
-    }
-}
-
+// The main serving function
 async fn serve(
     root: &Path,
     config_path: &str,
     content_dir: &str,
+    poll_interval: Duration,
+    watchables: Vec<(&str, WatchMode)>,
     open: bool,
+    live_reload_port: u16,
 ) -> Result<(), ServeError> {
     build_site()?;
 
     let (_tx, rx): (Sender<Event>, Receiver<Event>) = channel();
 
-    let watch_this: Vec<(&str, WatchMode)> = vec![
-        (config_path, WatchMode::Required),
-        (content_dir, WatchMode::Required),
-    ];
-
-    for (entry, mode) in watch_this {
+    for (entry, mode) in watchables {
         let watch_path = root.join(entry);
         let should_watch = match mode {
             WatchMode::Required => true,
@@ -73,11 +66,11 @@ async fn serve(
             WatchMode::Condition(b) => b && watch_path.exists(),
         };
         if should_watch {
-            let mut watcher = notify::recommended_watcher(handle_watch_event)?;
-            watcher.watch(&root.join(entry), RECURSIVE)?;
+            async_watch(watch_path, poll_interval).await?;
         }
     }
 
+    // TODO: open the browser to the running site
     if open {
         open::that("")?;
     }
