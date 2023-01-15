@@ -128,7 +128,7 @@ async fn serve(
         // TODO: make the handler callback more robust
         let ws_server = WebSocket::new(|_: WsSender| move |_: Message| Ok(()))?;
 
-        let ws_addr = "";
+        let ws_addr = format!("http://localhost:{}", live_reload_port);
 
         let ws_server = ws_server.bind(&*ws_addr).expect("could not bind WS server");
 
