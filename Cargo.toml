@@ -2,3 +2,6 @@
 name = "ssg"
 version = "0.0.1-SNAPSHOT"
 edition = "2021"
+
+[workspace]
+members = ["packages/markdown"]
