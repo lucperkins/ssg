@@ -18,7 +18,7 @@ use self::watch::async_watch;
 mod watch;
 
 #[derive(Debug, thiserror::Error)]
-enum ServeError {
+pub enum ServeError {
     #[error("unknown")]
     Unknown,
 
@@ -37,18 +37,6 @@ enum ServeError {
 
 async fn handle_request(_: Request<Body>, _: PathBuf) -> Result<Response<Body>, ServeError> {
     Err(ServeError::Unknown)
-}
-
-// Build the site to "warm up" the server
-fn build_site() -> Result<(), ServeError> {
-    // TODO
-    Ok(())
-}
-
-enum WatchMode {
-    Required,
-    Optional,
-    Condition(bool),
 }
 
 fn rebuild_done_handling(broadcaster: &WsSender, res: Result<(), ServeError>, reload_path: &str) {
@@ -73,34 +61,50 @@ fn rebuild_done_handling(broadcaster: &WsSender, res: Result<(), ServeError>, re
     }
 }
 
+pub trait Buildable {
+    fn build(&self) -> Result<(), ServeError>;
+}
+
 // The main serving function
-async fn serve(
+pub async fn serve(
     root: &Path,
-    config_path: &str,
-    content_dir: &str,
     poll_interval: Duration,
-    watchables: Vec<(&str, WatchMode)>,
+    watchables: Vec<&str>,
     open: bool,
     port: u16,
     live_reload_port: u16,
+    buildable: Box<&dyn Buildable>,
 ) -> Result<(), ServeError> {
+    println!("building site");
+
+    buildable.build()?;
+
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
-    build_site()?;
+    println!("opening channel");
 
-    let (_tx, rx): (Sender<Event>, Receiver<Event>) = channel();
+    let (_, rx): (Sender<Event>, Receiver<Event>) = channel();
 
-    for (entry, mode) in watchables {
+    println!("registering watchables");
+
+    for entry in watchables {
         let watch_path = root.join(entry);
-        let should_watch = match mode {
-            WatchMode::Required => true,
-            WatchMode::Optional => watch_path.exists(),
-            WatchMode::Condition(b) => b && watch_path.exists(),
-        };
-        if should_watch {
-            async_watch(watch_path, poll_interval).await?;
-        }
+        println!("listening on {:?}", watch_path);
+        thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("could not build tokio runtime");
+
+            runtime.block_on(async {
+                async_watch(&watch_path, poll_interval)
+                    .await
+                    .expect(&format!("could not watch {:?}", &watch_path));
+            });
+        });
     }
+
+    println!("listening to all directories");
 
     let broadcaster: WsSender = {
         thread::spawn(move || {
@@ -135,22 +139,27 @@ async fn serve(
         ws_server.broadcaster()
     };
 
+    ctrlc::set_handler(move || {
+        std::process::exit(0);
+    })
+    .expect("error applying ctrl+c handler");
+
+    println!("listening...");
+
     while let Ok(event) = rx.recv() {
         use notify::EventKind::*;
 
-        println!("attrs: {:?}", event.attrs);
-
         match event.kind {
-            Create(create) => {
-                println!("creating: {:?}", create);
+            Create(_) | Modify(_) | Remove(_) => {
+                if let Some(path) = event.paths.get(0) {
+                    buildable.build()?;
+                    println!("path: {:?}", path);
+                }
             }
-            Modify(modify) => {
-                println!("modifying: {:?}", modify);
+            _ => {
+                println!("{:?}", event);
+                continue;
             }
-            Remove(remove) => {
-                println!("removing: {:?}", remove);
-            }
-            _ => continue,
         }
     }
 
