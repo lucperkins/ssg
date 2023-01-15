@@ -20,15 +20,34 @@
       ];
 
       pkgs = import nixpkgs { inherit system overlays; };
+      inherit (pkgs) mkShell writeScriptBin;
+
+      xFunc = cmd: writeScriptBin "x-${cmd}" ''
+        cargo watch -x ${cmd}
+      '';
+
+      ci = writeScriptBin "ci" ''
+        cargo fmt --check
+        cargo clippy
+        cargo build --release
+        cargo test
+      '';
+
+      scripts = [
+        ci
+        (builtins.map (cmd: xFunc cmd) [ "build" "check" "run" "test" ])
+      ];
+
+      macosPkgs = pkgs.lib.optionals pkgs.stdenv.isDarwin (with pkgs.darwin.apple_sdk.frameworks; [ CoreServices ]);
     in
     {
-      devShells.default = pkgs.mkShell {
-        packages = with pkgs; [
+      devShells.default = mkShell {
+        packages = (with pkgs; [
           rustToolchain
           cargo-edit
           cargo-watch
           rust-analyzer
-        ];
+        ]) ++ scripts ++ macosPkgs;
       };
     });
 }
