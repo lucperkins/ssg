@@ -1,0 +1,4 @@
+[package]
+name = "ssg"
+version = "0.0.1-SNAPSHOT"
+edition = "2021"
