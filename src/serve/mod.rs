@@ -9,7 +9,7 @@ use axum::{
     body::Body,
     http::{Request, Response},
 };
-
+use log::trace;
 use notify::Event;
 use ws::{Message, Sender as WsSender, WebSocket};
 
@@ -75,21 +75,21 @@ pub async fn serve(
     live_reload_port: u16,
     buildable: Box<&dyn Buildable>,
 ) -> Result<(), ServeError> {
-    println!("building site");
+    trace!("building site");
 
     buildable.build()?;
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
-    println!("opening channel");
+    trace!("opening channel");
 
     let (_, rx): (Sender<Event>, Receiver<Event>) = channel();
 
-    println!("registering watchables");
+    trace!("registering watchables");
 
     for entry in watchables {
         let watch_path = root.join(entry);
-        println!("listening on {:?}", watch_path);
+        trace!("listening on {:?}", watch_path);
         thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -104,7 +104,7 @@ pub async fn serve(
         });
     }
 
-    println!("listening to all directories");
+    trace!("listening to all directories");
 
     let broadcaster: WsSender = {
         thread::spawn(move || {
@@ -144,7 +144,7 @@ pub async fn serve(
     })
     .expect("error applying ctrl+c handler");
 
-    println!("listening...");
+    trace!("listening...");
 
     while let Ok(event) = rx.recv() {
         use notify::EventKind::*;
@@ -153,11 +153,11 @@ pub async fn serve(
             Create(_) | Modify(_) | Remove(_) => {
                 if let Some(path) = event.paths.get(0) {
                     buildable.build()?;
-                    println!("path: {:?}", path);
+                    trace!("path: {:?}", path);
                 }
             }
             _ => {
-                println!("{:?}", event);
+                trace!("{:?}", event);
                 continue;
             }
         }

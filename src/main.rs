@@ -14,6 +14,8 @@ impl Buildable for Site {
 
 #[tokio::main]
 async fn main() -> Result<(), ServeError> {
+    env_logger::init();
+
     let root = Path::new("site");
 
     let site = Site;
