@@ -23,7 +23,7 @@ jobs:
       - name: Check Rust formatting
         run: nix develop --command cargo fmt --check
       - name: Clippy
-        run: nix develop --ccommand cargo clippy
+        run: nix develop --command cargo clippy
       - name: Flake check
         run: nix flake check
 
