@@ -19,7 +19,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v4
       - uses: DeterminateSystems/magic-nix-cache-action@v2
       - name: Check Nix formatting
-        run: nix develop --command nixpkgs-fmt --check **/*.nix
+        run: nix develop --command check-nixpkgs-fmt
       - name: Check Rust formatting
         run: nix develop --command cargo fmt --check
       - name: Clippy

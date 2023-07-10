@@ -37,8 +37,17 @@
               cargo test
             '';
 
+            check-nixpkgs-fmt = pkgs.writeShellApplication {
+              name = "check-nixpkgs-fmt";
+              runtimeInputs = with pkgs; [ git nixpkgs-fmt ];
+              text = ''
+                git ls-files '*.nix' | xargs nixpkgs-fmt --check
+              '';
+            };
+
             scripts = [
               ci
+              check-nixpkgs-fmt
               (builtins.map (cmd: xFunc cmd) [ "build" "check" "clippy" "run" "test" ])
             ];
 
