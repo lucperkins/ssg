@@ -1,16 +1,15 @@
 {
   inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
   outputs =
     { self
-    , flake-utils
     , nixpkgs
     , rust-overlay
     }:
 
-    flake-utils.lib.eachDefaultSystem (system:
     let
       overlays = [
         (import rust-overlay)
@@ -18,36 +17,42 @@
           rustToolchain = super.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
         })
       ];
-
-      pkgs = import nixpkgs { inherit system overlays; };
-      inherit (pkgs) mkShell writeScriptBin;
-
-      xFunc = cmd: writeScriptBin "x-${cmd}" ''
-        cargo watch -x ${cmd}
-      '';
-
-      ci = writeScriptBin "ci" ''
-        cargo fmt --check
-        cargo clippy
-        cargo build --release
-        cargo test
-      '';
-
-      scripts = [
-        ci
-        (builtins.map (cmd: xFunc cmd) [ "build" "check" "run" "test" ])
-      ];
-
-      macosPkgs = pkgs.lib.optionals pkgs.stdenv.isDarwin (with pkgs.darwin.apple_sdk.frameworks; [ CoreServices ]);
+      supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+      forEachsupportedSystem = f: nixpkgs.lib.genAttrs supportedSystems (system: f {
+        pkgs = import nixpkgs { inherit overlays system; };
+      });
     in
     {
-      devShells.default = mkShell {
-        packages = (with pkgs; [
-          rustToolchain
-          cargo-edit
-          cargo-watch
-          rust-analyzer
-        ]) ++ scripts ++ macosPkgs;
-      };
-    });
+      devShells = forEachsupportedSystem ({ pkgs }: {
+        default =
+          let
+            xFunc = cmd: pkgs.writeScriptBin "x-${cmd}" ''
+              cargo watch -x ${cmd}
+            '';
+
+            ci = pkgs.writeScriptBin "ci" ''
+              cargo fmt --check
+              cargo clippy
+              cargo build --release
+              cargo test
+            '';
+
+            scripts = [
+              ci
+              (builtins.map (cmd: xFunc cmd) [ "build" "check" "run" "test" ])
+            ];
+
+            macosPkgs = pkgs.lib.optionals pkgs.stdenv.isDarwin
+              (with pkgs.darwin.apple_sdk.frameworks; [ CoreServices ]);
+          in
+          pkgs.mkShell {
+            packages = (with pkgs; [
+              rustToolchain
+              cargo-edit
+              cargo-watch
+              rust-analyzer
+            ]) ++ scripts ++ macosPkgs;
+          };
+      });
+    };
 }
