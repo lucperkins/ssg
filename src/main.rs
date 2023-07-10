@@ -7,13 +7,13 @@ extern crate ssg;
 struct Site;
 
 impl Buildable for Site {
-    fn build(&self) -> Result<(), ServeError> {
+    fn build(&self) -> Result<(), Box<ServeError>> {
         Ok(())
     }
 }
 
 #[tokio::main]
-async fn main() -> Result<(), ServeError> {
+async fn main() -> Result<(), Box<ServeError>> {
     env_logger::init();
 
     let root = Path::new("site");
@@ -29,5 +29,7 @@ async fn main() -> Result<(), ServeError> {
         8081,
         Box::new(&site),
     )
-    .await
+    .await?;
+
+    Ok(())
 }

@@ -35,10 +35,12 @@ pub enum ServeError {
     WebSocket(#[from] ws::Error),
 }
 
+#[allow(dead_code)]
 async fn handle_request(_: Request<Body>, _: PathBuf) -> Result<Response<Body>, ServeError> {
     Err(ServeError::Unknown)
 }
 
+#[allow(dead_code)]
 fn rebuild_done_handling(broadcaster: &WsSender, res: Result<(), ServeError>, reload_path: &str) {
     match res {
         Ok(_) => broadcaster
@@ -62,7 +64,7 @@ fn rebuild_done_handling(broadcaster: &WsSender, res: Result<(), ServeError>, re
 }
 
 pub trait Buildable {
-    fn build(&self) -> Result<(), ServeError>;
+    fn build(&self) -> Result<(), Box<ServeError>>;
 }
 
 // The main serving function
@@ -74,7 +76,7 @@ pub async fn serve(
     port: u16,
     live_reload_port: u16,
     buildable: Box<&dyn Buildable>,
-) -> Result<(), ServeError> {
+) -> Result<(), Box<ServeError>> {
     trace!("building site");
 
     buildable.build()?;
@@ -99,14 +101,14 @@ pub async fn serve(
             runtime.block_on(async {
                 async_watch(&watch_path, poll_interval)
                     .await
-                    .expect(&format!("could not watch {:?}", &watch_path));
+                    .unwrap_or_else(|_| panic!("could not watch {:?}", &watch_path));
             });
         });
     }
 
     trace!("listening to all directories");
 
-    let broadcaster: WsSender = {
+    let _broadcaster: WsSender = {
         thread::spawn(move || {
             // Create a new async runtime for the web server
             let runtime = tokio::runtime::Builder::new_current_thread()
@@ -121,7 +123,7 @@ pub async fn serve(
 
                 // TODO: open the browser to the running site
                 if open {
-                    let address = format!("http://{}", &addr);
+                    let address = format!("http://{addr}");
                     open::that(address).expect("could not open browser"); // TODO: handle this better
                 }
 
@@ -130,9 +132,10 @@ pub async fn serve(
         });
 
         // TODO: make the handler callback more robust
-        let ws_server = WebSocket::new(|_: WsSender| move |_: Message| Ok(()))?;
+        let ws_server = WebSocket::new(|_: WsSender| move |_: Message| Ok(()))
+            .map_err(ServeError::WebSocket)?;
 
-        let ws_addr = format!("http://localhost:{}", live_reload_port);
+        let ws_addr = format!("http://localhost:{live_reload_port}");
 
         let ws_server = ws_server.bind(&*ws_addr).expect("could not bind WS server");
 
@@ -153,11 +156,11 @@ pub async fn serve(
             Create(_) | Modify(_) | Remove(_) => {
                 if let Some(path) = event.paths.get(0) {
                     buildable.build()?;
-                    trace!("path: {:?}", path);
+                    trace!("tracked event: {:?}", path);
                 }
             }
             _ => {
-                trace!("{:?}", event);
+                trace!("untracked event: {:?}", event);
                 continue;
             }
         }

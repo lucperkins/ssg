@@ -12,7 +12,7 @@
 
     let
       overlays = [
-        (import rust-overlay)
+        rust-overlay.overlays.default
         (self: super: {
           rustToolchain = super.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
         })
@@ -39,7 +39,7 @@
 
             scripts = [
               ci
-              (builtins.map (cmd: xFunc cmd) [ "build" "check" "run" "test" ])
+              (builtins.map (cmd: xFunc cmd) [ "build" "check" "clippy" "run" "test" ])
             ];
 
             macosPkgs = pkgs.lib.optionals pkgs.stdenv.isDarwin
