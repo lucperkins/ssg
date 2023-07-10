@@ -157,7 +157,7 @@ pub async fn serve(
         let ws_server = WebSocket::new(|_: WsSender| move |_: Message| Ok(()))
             .map_err(ServeError::WebSocket)?;
 
-        let ws_addr = format!("http://localhost:{port}", port=config.live_reload_port);
+        let ws_addr = format!("http://localhost:{port}", port = config.live_reload_port);
 
         let ws_server = ws_server.bind(&*ws_addr).expect("could not bind WS server");
 
