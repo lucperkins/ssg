@@ -67,21 +67,38 @@ pub trait Buildable {
     fn build(&self) -> Result<(), Box<ServeError>>;
 }
 
-// The main serving function
-pub async fn serve(
-    root: &Path,
+pub struct ServeConfig {
+    root: &'static Path,
     poll_interval: Duration,
-    watchables: Vec<&str>,
+    watchables: Vec<String>,
     open: bool,
     port: u16,
     live_reload_port: u16,
+}
+
+impl Default for ServeConfig {
+    fn default() -> Self {
+        Self {
+            root: Path::new("."),
+            poll_interval: Duration::from_secs(5),
+            watchables: vec![],
+            open: false,
+            port: 8080,
+            live_reload_port: 4400,
+        }
+    }
+}
+
+// The main serving function
+pub async fn serve(
+    config: &ServeConfig,
     buildable: Box<&dyn Buildable>,
 ) -> Result<(), Box<ServeError>> {
     trace!("building site");
 
     buildable.build()?;
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let addr = SocketAddr::from(([127, 0, 0, 1], config.port));
 
     trace!("opening channel");
 
@@ -89,7 +106,10 @@ pub async fn serve(
 
     trace!("registering watchables");
 
-    for entry in watchables {
+    let root = &config.root;
+    let poll_interval = config.poll_interval;
+
+    for entry in &config.watchables {
         let watch_path = root.join(entry);
         trace!("listening on {:?}", watch_path);
         thread::spawn(move || {
@@ -107,6 +127,8 @@ pub async fn serve(
     }
 
     trace!("listening to all directories");
+
+    let open = config.open;
 
     let _broadcaster: WsSender = {
         thread::spawn(move || {
@@ -135,7 +157,7 @@ pub async fn serve(
         let ws_server = WebSocket::new(|_: WsSender| move |_: Message| Ok(()))
             .map_err(ServeError::WebSocket)?;
 
-        let ws_addr = format!("http://localhost:{live_reload_port}");
+        let ws_addr = format!("http://localhost:{port}", port=config.live_reload_port);
 
         let ws_server = ws_server.bind(&*ws_addr).expect("could not bind WS server");
 

@@ -3,4 +3,4 @@ mod markdown;
 
 #[cfg(feature = "serve")]
 mod serve;
-pub use serve::{serve, Buildable, ServeError};
+pub use serve::{serve, Buildable, ServeConfig, ServeError};
