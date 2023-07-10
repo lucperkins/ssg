@@ -51,6 +51,9 @@
               cargo-edit
               cargo-watch
               rust-analyzer
+
+              # Nix
+              nixpkgs-fmt
             ]) ++ scripts ++ macosPkgs;
           };
       });
