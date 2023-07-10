@@ -1,4 +1,6 @@
+#[cfg(feature = "markdown")]
 mod markdown;
-mod serve;
 
+#[cfg(feature = "serve")]
+mod serve;
 pub use serve::{serve, Buildable, ServeError};
