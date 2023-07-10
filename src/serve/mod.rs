@@ -68,12 +68,12 @@ pub trait Buildable {
 }
 
 pub struct ServeConfig {
-    root: &'static Path,
-    poll_interval: Duration,
-    watchables: Vec<String>,
-    open: bool,
-    port: u16,
-    live_reload_port: u16,
+    pub root: &'static Path,
+    pub poll_interval: Duration,
+    pub watchables: Vec<String>,
+    pub open: bool,
+    pub port: u16,
+    pub live_reload_port: u16,
 }
 
 impl Default for ServeConfig {
